@@ -110,13 +110,15 @@ root.mainloop()
 
 ### How to run:
 1. Install required dependencies using pip:
-      pip install psutil
-   
+```python
+   pip install psutil
+```
    You may also need platform-specific libraries (pyudev, pywinusb).
 
 2. Run the script:
-      python usb_monitor.py
-   
+```python
+   python usb_monitor.py
+```
 
 ### Next Steps:
 - Add platform-specific logic for USB detection.
