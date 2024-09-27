@@ -102,4 +102,24 @@ exit_button.pack(pady=10)
 # Run the GUI loop
 root.mainloop()
 ```
+### Key Aspects:
+- GUI: Uses tkinter to provide a simple interface with "Start Monitoring" and "Stop Monitoring" buttons.
+- USB Detection: A placeholder for USB detection based on the platform (e.g., Linux, Windows, Mac).
+- Suspicious Activity Monitoring: Monitors running processes for specific suspicious patterns, like keyloggers.
+- Logging: Logs USB connection, disconnection, and suspicious activity to a file (usb_monitor.log).
 
+### How to run:
+1. Install required dependencies using pip:
+      pip install psutil
+   
+   You may also need platform-specific libraries (pyudev, pywinusb).
+
+2. Run the script:
+      python usb_monitor.py
+   
+
+### Next Steps:
+- Add platform-specific logic for USB detection.
+- Expand the suspicious activity detection based on your criteria (like file transfers between USB and system).
+
+This is a basic structure that should be expanded for complete functionality.
