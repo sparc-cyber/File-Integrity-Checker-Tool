@@ -1,4 +1,4 @@
-# USB-Python-Tool
+# USB Monitoring Tool - Using Python
 
 Here’s a Python tool based on the algorithm, using tkinter for the GUI, psutil for monitoring processes, and basic USB detection methods. Since exact USB detection varies across platforms, this code provides the structure and an example implementation. You will need to install additional platform-specific libraries (like pyudev for Linux or pywinusb for Windows) if needed.
 
