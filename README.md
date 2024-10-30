@@ -1,127 +1,196 @@
-# USB Monitoring Tool - Using Python
+Got it! We’ll adjust the logging to format integrity violations as structured blocks using your specified format. Here’s how the modified logging format will look in `integrity_log.txt`:
 
-Here’s a Python tool based on the algorithm, using tkinter for the GUI, psutil for monitoring processes, and basic USB detection methods. Since exact USB detection varies across platforms, this code provides the structure and an example implementation. You will need to install additional platform-specific libraries (like pyudev for Linux or pywinusb for Windows) if needed.
+```plaintext
+{
+Integrity violation detected for <file_path>
+Previous hash: <previous_hash>
+New hash: <new_hash>
+Timestamp: <timestamp>
+}
+```
+
+And here’s the updated code to achieve this:
 
 ```python
-import tkinter as tk
-from tkinter import messagebox
-import psutil
-import time
-import threading
-import platform
+import hashlib
+import json
+import os
 import logging
+from datetime import datetime
 
-# Cross-platform support: Linux, Windows, Mac
-SYSTEM_PLATFORM = platform.system()
+# Configurations
+HASH_FILE = 'hashes.json'
+HISTORY_FILE = 'history.json'
+LOG_FILE = 'integrity_log.txt'
 
-# Set up logging
-logging.basicConfig(filename="usb_monitor.log", level=logging.INFO, 
-                    format="%(asctime)s - %(message)s")
+# Initialize logging
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(message)s')
 
-# Function to simulate USB monitoring
-def monitor_usb_activity():
-    usb_connected = False
-    while running:
-        # USB connection detection (this needs platform-specific libraries)
-        if SYSTEM_PLATFORM == "Linux":
-            # Example for Linux using psutil (use pyudev for real USB detection)
-            devices = psutil.disk_partitions()
-            for device in devices:
-                if "media" in device.mountpoint and not usb_connected:
-                    logging.info(f"USB Connected: {device.device}")
-                    messagebox.showinfo("USB Alert", f"USB Device Connected: {device.device}")
-                    usb_connected = True
-                elif usb_connected and "media" not in device.mountpoint:
-                    logging.info("USB Disconnected")
-                    messagebox.showinfo("USB Alert", "USB Device Disconnected")
-                    usb_connected = False
-        elif SYSTEM_PLATFORM == "Windows":
-            # Placeholder for Windows USB detection logic
-            pass
-        elif SYSTEM_PLATFORM == "Darwin":
-            # Placeholder for Mac USB detection logic
-            pass
+def load_json(file_path):
+    """Load JSON data from a file."""
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            return json.load(f)
+    return []
 
-        time.sleep(5)  # Check every 5 seconds
+def save_json(data, file_path):
+    """Save JSON data to a file."""
+    with open(file_path, 'w') as f:
+        json.dump(data, f, indent=4)
 
-# Function to monitor suspicious activity
-def monitor_suspicious_activity():
-    while running:
-        for proc in psutil.process_iter(['pid', 'name', 'username', 'cmdline']):
-            try:
-                # Check for suspicious commands (e.g., keyloggers, etc.)
-                if "keylogger" in proc.info['name'].lower():
-                    logging.warning(f"Suspicious activity detected: {proc.info}")
-                    messagebox.showwarning("Suspicious Activity", f"Keylogger detected: {proc.info['name']}")
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
+def calculate_hash(file_path):
+    """Calculate SHA-256 hash of a file."""
+    sha256 = hashlib.sha256()
+    try:
+        with open(file_path, 'rb') as f:
+            while chunk := f.read(4096):
+                sha256.update(chunk)
+    except FileNotFoundError:
+        logging.warning(f"File not found: {file_path}")
+        return None
+    return sha256.hexdigest()
 
-        time.sleep(10)  # Check every 10 seconds
+def add_file_to_monitor():
+    """Add a new file path to monitor."""
+    file_path = input("Enter the full path of the file to monitor: ")
+    if os.path.exists(file_path):
+        hashes = load_json(HASH_FILE)
+        current_hash = calculate_hash(file_path)
+        if current_hash is None:
+            return
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Check if file is already monitored
+        for entry in hashes:
+            if entry["file"] == file_path:
+                print("This file is already being monitored.")
+                return
+        
+        # Add the file with the hash and timestamp
+        hashes.append({"file": file_path, "hash": current_hash, "timestamp": timestamp})
+        save_json(hashes, HASH_FILE)
+        print(f"File {file_path} has been added for monitoring.")
+    else:
+        print("File path is invalid or does not exist.")
 
-# Function to start the monitoring process
-def start_monitoring():
-    global running
-    running = True
-    logging.info("Monitoring started")
-    start_button.config(state="disabled")
-    stop_button.config(state="normal")
+def update_history(file_path, new_hash):
+    """Update the history file with the last 5 hashes for a file."""
+    history = load_json(HISTORY_FILE)
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Find the history for the file or create it if it doesn't exist
+    file_history = next((item for item in history if item["file"] == file_path), None)
+    if file_history:
+        file_history["hashes"].append({"hash": new_hash, "timestamp": timestamp})
+        # Keep only the last 5 entries
+        file_history["hashes"] = file_history["hashes"][-5:]
+    else:
+        # Create a new entry for the file
+        history.append({"file": file_path, "hashes": [{"hash": new_hash, "timestamp": timestamp}]})
 
-    # Start USB monitoring thread
-    usb_thread = threading.Thread(target=monitor_usb_activity)
-    usb_thread.start()
+    save_json(history, HISTORY_FILE)
 
-    # Start suspicious activity monitoring thread
-    activity_thread = threading.Thread(target=monitor_suspicious_activity)
-    activity_thread.start()
+def log_integrity_violation(file_path, previous_hash, new_hash):
+    """Log integrity violation details in a structured format."""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    log_message = (
+        f"{{\n"
+        f"Integrity violation detected for {file_path}\n"
+        f"Previous hash: {previous_hash}\n"
+        f"New hash: {new_hash}\n"
+        f"Timestamp: {timestamp}\n"
+        f"}}\n"
+    )
+    logging.info(log_message)
+    print(log_message)
 
-# Function to stop the monitoring process
-def stop_monitoring():
-    global running
-    running = False
-    logging.info("Monitoring stopped")
-    messagebox.showinfo("USB Monitor", "Monitoring stopped")
-    start_button.config(state="normal")
-    stop_button.config(state="disabled")
+def remove_file_from_monitor():
+    """Remove a file from monitoring."""
+    hashes = load_json(HASH_FILE)
+    if not hashes:
+        print("No files are currently being monitored.")
+        return
+    
+    print("Files currently being monitored:")
+    for idx, entry in enumerate(hashes, start=1):
+        print(f"{idx}. {entry['file']}")
+    
+    try:
+        choice = int(input("Enter the number of the file to remove: ")) - 1
+        file_path = hashes[choice]["file"]
+        hashes.pop(choice)
+        save_json(hashes, HASH_FILE)
+        print(f"File {file_path} has been removed from monitoring.")
+    except (ValueError, IndexError):
+        print("Invalid selection. Please try again.")
 
-    # Exit the application after stopping
-    root.quit()
+def check_integrity():
+    """Check integrity of all monitored files and log any changes."""
+    hashes = load_json(HASH_FILE)
+    if not hashes:
+        print("No files are currently being monitored.")
+        return
 
-# Set up GUI
-root = tk.Tk()
-root.title("USB Monitoring Tool")
+    for entry in hashes:
+        file_path = entry["file"]
+        stored_hash = entry["hash"]
+        current_hash = calculate_hash(file_path)
+        if current_hash is None:
+            continue  # Skip if the file is not found
+        
+        if stored_hash != current_hash:
+            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            # Log the integrity violation in specified format
+            log_integrity_violation(file_path, stored_hash, current_hash)
 
-start_button = tk.Button(root, text="Start Monitoring", command=start_monitoring, width=25)
-start_button.pack(pady=10)
+            # Update history and current hash with timestamp
+            update_history(file_path, current_hash)
+            entry["hash"] = current_hash
+            entry["timestamp"] = timestamp
+            save_json(hashes, HASH_FILE)
+        else:
+            print(f"File {file_path} is unchanged.")
 
-stop_button = tk.Button(root, text="Stop Monitoring", command=stop_monitoring, width=25, state="disabled")
-stop_button.pack(pady=10)
+def main():
+    while True:
+        print("\nFile Integrity Checker Menu:")
+        print("1. Add a file to monitor")
+        print("2. Remove a file from monitoring")
+        print("3. Run integrity check")
+        print("4. Quit")
+        
+        choice = input("Select an option (1-4): ")
+        
+        if choice == '1':
+            add_file_to_monitor()
+        elif choice == '2':
+            remove_file_from_monitor()
+        elif choice == '3':
+            check_integrity()
+        elif choice == '4':
+            print("Exiting program.")
+            break
+        else:
+            print("Invalid option. Please choose between 1 and 4.")
 
-exit_button = tk.Button(root, text="Exit", command=root.quit, width=25)
-exit_button.pack(pady=10)
-
-# Run the GUI loop
-root.mainloop()
+# Run the program
+if __name__ == "__main__":
+    main()
 ```
-### Key Aspects:
-- GUI: Uses tkinter to provide a simple interface with "Start Monitoring" and "Stop Monitoring" buttons.
-- USB Detection: A placeholder for USB detection based on the platform (e.g., Linux, Windows, Mac).
-- Suspicious Activity Monitoring: Monitors running processes for specific suspicious patterns, like keyloggers.
-- Logging: Logs USB connection, disconnection, and suspicious activity to a file (usb_monitor.log).
 
-### How to run:
-1. Install required dependencies using pip:
-```python
-   pip install psutil
-```
-   You may also need platform-specific libraries (pyudev, pywinusb).
+### Summary of Changes
+1. **Structured Integrity Violation Logging**:
+   - Each integrity violation log entry in `integrity_log.txt` follows the specified format:
+     ```plaintext
+     {
+     Integrity violation detected for /path/to/file
+     Previous hash: <previous_hash>
+     New hash: <new_hash>
+     Timestamp: <timestamp>
+     }
+     ```
 
-2. Run the script:
-```python
-   python usb_monitor.py
-```
+2. **Helper Function for Logging Violations**:
+   - A new function `log_integrity_violation()` is created to handle the structured logging of integrity violations.
 
-### Next Steps:
-- Add platform-specific logic for USB detection.
-- Expand the suspicious activity detection based on your criteria (like file transfers between USB and system).
-
-This is a basic structure that should be expanded for complete functionality.
+Let me know if this setup works for your requirements!
