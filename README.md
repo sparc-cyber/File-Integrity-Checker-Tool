@@ -11,5 +11,4 @@ This tool monitors file integrity by checking the hashes of specified files at r
 - Runs in a continuous monitoring loop, comparing the current hash of each monitored file to the last known hash in the database every 30 seconds.
 &nbsp;
 
-If a hash mismatch is detected, the tool alerts the user with responsive Tkinter notifications that repeat every minute until the file is reverted to its saved state.
-This tool is ideal for environments where file integrity is critical, providing prompt notifications of any unauthorized changes and keeping a record of hash history for each monitored file.
+
